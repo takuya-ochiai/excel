@@ -1,0 +1,3 @@
+[tools]
+node = "latest"
+"vfox:mise-plugins/vfox-flutter" = "3.32.0"
