@@ -42,13 +42,13 @@
   - Equatable の props に全新規フィールドを追加する
   - _Requirements: 2.4, 6.3_
 
-- [ ] 3. パーサーの修正（タスク 4 と並行実行可能）
-- [ ] 3.1 アライメントと下線パースの既知バグを修正する
+- [x] 3. パーサーの修正（タスク 4 と並行実行可能）
+- [x] 3.1 アライメントと下線パースの既知バグを修正する
   - アライメント属性（horizontal, vertical, textRotation）の読み取り元を xf 要素から alignment 子要素に修正する（3 箇所）
   - 下線パースで Double が Single に上書きされるバグを修正し、val 属性値に基づく正確な分岐ロジックに変更する（val なし → Single、val="double" → Double、その他 → Single）
   - _Requirements: 1.1, 1.2, 1.3, 2.1_
 
-- [ ] 3.2 拡張属性・テーマカラー・塗りつぶし・保護のパース処理を追加する
+- [x] 3.2 拡張属性・テーマカラー・塗りつぶし・保護のパース処理を追加する
   - アライメント拡張属性（indent, readingOrder, justifyLastLine, relativeIndent）を alignment 子要素からパースする
   - フォント拡張属性（strike 要素による取り消し線、vertAlign 要素による上付き/下付き）をパースする
   - 色要素を共通的にパースするヘルパー関数を新設し、rgb / theme / tint / indexed / auto を統一的に色値オブジェクトとして読み取る

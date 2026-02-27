@@ -71,6 +71,7 @@ class CellStyle extends Equatable {
         _bold = bold,
         _fontSize = fontSize,
         _italic = italic,
+        _underline = underline,
         _fontFamily = fontFamily,
         _fontScheme = fontScheme ?? FontScheme.Unset,
         _rotation = rotation,

@@ -254,18 +254,18 @@ class Parser {
       document.findAllElements('patternFill').forEach((node) {
         String patternType = node.getAttribute('patternType') ?? '';
         if (node.children.isNotEmpty) {
-          String rgb = '';
+          ColorValue? fgColor;
+          ColorValue? bgColor;
           node.findElements('fgColor').forEach((child) {
-            rgb = child.getAttribute('rgb') ?? '';
+            fgColor = _parseColorValue(child);
           });
-          if (rgb.isNotEmpty) {
-            _excel._patternFill.add(FillValue(
-                patternType: patternType.isEmpty ? 'solid' : patternType,
-                fgColor: ColorValue.rgb(rgb)));
-          } else {
-            _excel._patternFill
-                .add(FillValue(patternType: patternType));
-          }
+          node.findElements('bgColor').forEach((child) {
+            bgColor = _parseColorValue(child);
+          });
+          _excel._patternFill.add(FillValue(
+              patternType: patternType.isEmpty ? 'solid' : patternType,
+              fgColor: fgColor,
+              bgColor: bgColor));
         } else {
           _excel._patternFill.add(FillValue(patternType: patternType));
         }
@@ -300,14 +300,24 @@ class Parser {
               : null;
 
           String? borderColorHex;
+          ColorValue? borderColorValue;
           try {
             final color = element?.findElements('color').single;
             borderColorHex = color?.getAttribute('rgb')?.trim();
+            if (color != null) {
+              var cv = _parseColorValue(color);
+              // Only set borderColorValue when it carries information beyond
+              // what borderColorHex can express (theme/indexed colors)
+              if (cv != null && (cv.theme != null || cv.indexed != null)) {
+                borderColorValue = cv;
+              }
+            }
           } on StateError catch (_) {}
 
           borderElements[elementName] = Border(
               borderStyle: borderStyle,
-              borderColorHex: borderColorHex?.excelColor);
+              borderColorHex: borderColorHex?.excelColor,
+              borderColor: borderColorValue);
         }
 
         final borderSet = _BorderSet(
@@ -333,6 +343,16 @@ class Parser {
         });
       });
 
+      // Preserve raw XML for cellStyleXfs and cellStyles sections
+      var cellStyleXfsElements = document.findAllElements('cellStyleXfs');
+      if (cellStyleXfsElements.isNotEmpty) {
+        _excel._rawCellStyleXfs = cellStyleXfsElements.first.copy() as XmlElement;
+      }
+      var cellStylesElements = document.findAllElements('cellStyles');
+      if (cellStylesElements.isNotEmpty) {
+        _excel._rawCellStyles = cellStylesElements.first.copy() as XmlElement;
+      }
+
       document.findAllElements('cellXfs').forEach((node1) {
         node1.findAllElements('xf').forEach((node) {
           final numFmtId = _getFontIndex(node, 'numFmtId');
@@ -347,10 +367,19 @@ class Parser {
           int fontSize = 12;
           bool isBold = false, isItalic = false;
           Underline underline = Underline.None;
+          bool isStrikethrough = false;
+          FontVerticalAlign fontVerticalAlignVal = FontVerticalAlign.none;
+          ColorValue? fontColorValue;
           HorizontalAlign horizontalAlign = HorizontalAlign.Left;
           VerticalAlign verticalAlign = VerticalAlign.Bottom;
           TextWrapping? textWrapping;
           int rotation = 0;
+          int indent = 0;
+          int readingOrder = 0;
+          bool justifyLastLine = false;
+          int relativeIndent = 0;
+          CellProtection? protection;
+          int xfId = _getFontIndex(node, 'xfId');
           int fontId = _getFontIndex(node, 'fontId');
           _FontStyle _fontStyle = _FontStyle();
 
@@ -358,10 +387,16 @@ class Parser {
           if (fontId < fontList.length) {
             XmlElement font = fontList.elementAt(fontId);
 
-            /// Checking for font Size.
+            /// Checking for font color (RGB)
             var _clr = _nodeChildren(font, 'color', attribute: 'rgb');
             if (_clr != null && !(_clr is bool)) {
               fontColor = _clr.toString();
+            }
+
+            /// Checking for font color (theme color support)
+            Iterable<XmlElement> colorElements = font.findElements('color');
+            if (colorElements.isNotEmpty) {
+              fontColorValue = _parseColorValue(colorElements.first);
             }
 
             /// Checking for font Size.
@@ -382,16 +417,31 @@ class Parser {
               isItalic = true;
             }
 
-            /// Checking for double underline
-            var _underline = _nodeChildren(font, 'u', attribute: 'val');
-            if (_underline != null) {
-              underline = Underline.Double;
+            /// Checking for underline: if <u> element exists, check val attribute
+            var _hasUnderline = _nodeChildren(font, 'u');
+            if (_hasUnderline != null) {
+              var _underlineVal = _nodeChildren(font, 'u', attribute: 'val');
+              if (_underlineVal != null && _underlineVal.toString() == 'double') {
+                underline = Underline.Double;
+              } else {
+                underline = Underline.Single;
+              }
             }
 
-            /// Checking for single underline
-            var _singleUnderline = _nodeChildren(font, 'u');
-            if (_singleUnderline != null) {
-              underline = Underline.Single;
+            /// Checking for strikethrough
+            var _strike = _nodeChildren(font, 'strike');
+            if (_strike != null) {
+              isStrikethrough = true;
+            }
+
+            /// Checking for font vertical alignment (superscript/subscript)
+            var _vertAlignVal = _nodeChildren(font, 'vertAlign', attribute: 'val');
+            if (_vertAlignVal != null) {
+              if (_vertAlignVal.toString() == 'superscript') {
+                fontVerticalAlignVal = FontVerticalAlign.superscript;
+              } else if (_vertAlignVal.toString() == 'subscript') {
+                fontVerticalAlignVal = FontVerticalAlign.subscript;
+              }
             }
 
             /// Checking for font Family
@@ -409,10 +459,14 @@ class Parser {
 
             _fontStyle.isBold = isBold;
             _fontStyle.isItalic = isItalic;
+            _fontStyle.underline = underline;
             _fontStyle.fontSize = fontSize;
             _fontStyle.fontFamily = fontFamily;
             _fontStyle.fontScheme = fontScheme;
             _fontStyle._fontColorHex = fontColor.excelColor;
+            _fontStyle.isStrikethrough = isStrikethrough;
+            _fontStyle.fontVerticalAlign = fontVerticalAlignVal;
+            _fontStyle.fontColorCV = fontColorValue;
           }
 
           /// If `-1` is returned then it indicates that `_fontStyle` is not present in the `_fontStyleList`
@@ -421,8 +475,9 @@ class Parser {
           }
 
           int fillId = _getFontIndex(node, 'fillId');
+          FillValue? fillValue;
           if (fillId < _excel._patternFill.length) {
-            final fillValue = _excel._patternFill[fillId];
+            fillValue = _excel._patternFill[fillId];
             backgroundColor = fillValue.fgColor?.hexColor ?? fillValue.patternType;
           }
 
@@ -439,7 +494,7 @@ class Parser {
                 textWrapping = TextWrapping.Clip;
               }
 
-              var vertical = node.getAttribute('vertical');
+              var vertical = child.getAttribute('vertical');
               if (vertical != null) {
                 if (vertical.toString() == 'top') {
                   verticalAlign = VerticalAlign.Top;
@@ -448,7 +503,7 @@ class Parser {
                 }
               }
 
-              var horizontal = node.getAttribute('horizontal');
+              var horizontal = child.getAttribute('horizontal');
               if (horizontal != null) {
                 if (horizontal.toString() == 'center') {
                   horizontalAlign = HorizontalAlign.Center;
@@ -457,10 +512,40 @@ class Parser {
                 }
               }
 
-              var rotationString = node.getAttribute('textRotation');
+              var rotationString = child.getAttribute('textRotation');
               if (rotationString != null) {
                 rotation = (double.tryParse(rotationString) ?? 0.0).floor();
               }
+
+              /// Extended alignment attributes
+              var indentStr = child.getAttribute('indent');
+              if (indentStr != null) {
+                indent = int.tryParse(indentStr) ?? 0;
+              }
+
+              var readingOrderStr = child.getAttribute('readingOrder');
+              if (readingOrderStr != null) {
+                readingOrder = int.tryParse(readingOrderStr) ?? 0;
+              }
+
+              var justifyLastLineStr = child.getAttribute('justifyLastLine');
+              if (justifyLastLineStr != null) {
+                justifyLastLine = justifyLastLineStr == '1' || justifyLastLineStr == 'true';
+              }
+
+              var relativeIndentStr = child.getAttribute('relativeIndent');
+              if (relativeIndentStr != null) {
+                relativeIndent = int.tryParse(relativeIndentStr) ?? 0;
+              }
+            });
+
+            /// Parse protection child element
+            node.findElements('protection').forEach((child) {
+              var lockedStr = child.getAttribute('locked');
+              var hiddenStr = child.getAttribute('hidden');
+              bool locked = lockedStr == null || lockedStr == '1' || lockedStr == 'true';
+              bool hidden = hiddenStr != null && (hiddenStr == '1' || hiddenStr == 'true');
+              protection = CellProtection(locked: locked, hidden: hidden);
             });
           }
 
@@ -495,6 +580,20 @@ class Parser {
             numberFormat: numFormat,
           );
 
+          // Extended properties
+          cellStyle._indent = indent;
+          cellStyle._readingOrder = readingOrder;
+          cellStyle._justifyLastLine = justifyLastLine;
+          cellStyle._relativeIndent = relativeIndent;
+          cellStyle._isStrikethrough = isStrikethrough;
+          cellStyle._fontVerticalAlign = fontVerticalAlignVal;
+          cellStyle._fontColor = fontColorValue;
+          cellStyle._xfId = xfId;
+          cellStyle._protection = protection;
+          if (fillValue != null) {
+            cellStyle._fill = fillValue;
+          }
+
           _excel._cellStyleList.add(cellStyle);
         });
       });
@@ -516,6 +615,40 @@ class Parser {
       return true; // mocking to be found the children in case of bold and italic.
     }
     return null; // pretending that the node's children is not having specified child.
+  }
+
+  /// Parses a color XML element into a ColorValue object.
+  /// Supports rgb, theme+tint, indexed, and auto attributes.
+  ColorValue? _parseColorValue(XmlElement colorElement) {
+    String? rgb = colorElement.getAttribute('rgb');
+    String? themeStr = colorElement.getAttribute('theme');
+    String? tintStr = colorElement.getAttribute('tint');
+    String? indexedStr = colorElement.getAttribute('indexed');
+    String? autoStr = colorElement.getAttribute('auto');
+
+    int? theme = themeStr != null ? int.tryParse(themeStr) : null;
+    double? tint = tintStr != null ? double.tryParse(tintStr) : null;
+    int? indexed = indexedStr != null ? int.tryParse(indexedStr) : null;
+    bool? auto = autoStr != null ? (autoStr == '1' || autoStr == 'true') : null;
+
+    // Return null if no meaningful color information is present
+    // auto="1" alone means "use default color" which is equivalent to no color
+    // indexed 64 (system foreground) and 65 (system background) are OOXML
+    // automatic colors that don't carry explicit color information
+    if (rgb == null && theme == null && indexed == null) {
+      return null;
+    }
+    if (rgb == null && theme == null && (indexed == 64 || indexed == 65)) {
+      return null;
+    }
+
+    return ColorValue(
+      hexColor: rgb,
+      theme: theme,
+      tint: tint,
+      indexed: indexed,
+      auto: auto,
+    );
   }
 
   int _getFontIndex(var node, String text) {

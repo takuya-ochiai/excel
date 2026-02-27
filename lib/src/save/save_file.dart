@@ -172,9 +172,30 @@ class Save {
 
   /// Writing Font Color in [xl/styles.xml] from the Cells of the sheets.
 
+  /// Generates an XML color element from a ColorValue
+  XmlElement _writeColorElement(String elementName, ColorValue color) {
+    var attrs = <XmlAttribute>[];
+    if (color.isThemeColor) {
+      attrs.add(XmlAttribute(XmlName('theme'), color.theme.toString()));
+      if (color.tint != null) {
+        attrs.add(XmlAttribute(XmlName('tint'), color.tint.toString()));
+      }
+    } else if (color.hexColor != null) {
+      attrs.add(XmlAttribute(XmlName('rgb'), color.hexColor!));
+    }
+    if (color.indexed != null) {
+      attrs.add(XmlAttribute(XmlName('indexed'), color.indexed.toString()));
+    }
+    if (color.auto != null && color.auto!) {
+      attrs.add(XmlAttribute(XmlName('auto'), '1'));
+    }
+    return XmlElement(XmlName(elementName), attrs, []);
+  }
+
   void _processStylesFile() {
     _innerCellStyle.clear();
     List<String> innerPatternFill = <String>[];
+    List<FillValue> innerPatternFillValues = <FillValue>[];
     List<_FontStyle> innerFontStyle = <_FontStyle>[];
     List<_BorderSet> innerBorderSet = <_BorderSet>[];
 
@@ -200,6 +221,9 @@ class Save {
           fontSize: cellStyle.fontSize,
           fontFamily: cellStyle.fontFamily,
           fontScheme: cellStyle.fontScheme);
+      _fs.isStrikethrough = cellStyle.isStrikethrough;
+      _fs.fontVerticalAlign = cellStyle.fontVerticalAlign;
+      _fs.fontColorCV = cellStyle.fontColorValue;
 
       /// If `-1` is returned then it indicates that `_fontStyle` is not present in the `_fs`
       if (_fontStyleIndex(_excel._fontStyleList, _fs) == -1 &&
@@ -208,11 +232,19 @@ class Save {
       }
 
       /// Filling the inner usable extra list of background color
-      String backgroundColor = cellStyle.backgroundColor.colorHex;
-      if (!_excel._patternFill.any((f) =>
-              (f.fgColor?.hexColor ?? f.patternType) == backgroundColor) &&
-          !innerPatternFill.contains(backgroundColor)) {
-        innerPatternFill.add(backgroundColor);
+      /// Check for FillValue first, then fall back to backgroundColor hex
+      if (cellStyle.fill != null) {
+        if (!_excel._patternFill.contains(cellStyle.fill!) &&
+            !innerPatternFillValues.contains(cellStyle.fill!)) {
+          innerPatternFillValues.add(cellStyle.fill!);
+        }
+      } else {
+        String backgroundColor = cellStyle.backgroundColor.colorHex;
+        if (!_excel._patternFill.any((f) =>
+                (f.fgColor?.hexColor ?? f.patternType) == backgroundColor) &&
+            !innerPatternFill.contains(backgroundColor)) {
+          innerPatternFill.add(backgroundColor);
+        }
       }
 
       final _bs = _createBorderSetFromCellStyle(cellStyle);
@@ -235,60 +267,71 @@ class Save {
     }
 
     innerFontStyle.forEach((fontStyleElement) {
-      fonts.children.add(XmlElement(XmlName('font'), [], [
-        /// putting color
-        if (fontStyleElement._fontColorHex != null &&
-            fontStyleElement._fontColorHex!.colorHex != "FF000000")
-          XmlElement(XmlName('color'), [
-            XmlAttribute(
-                XmlName('rgb'), fontStyleElement._fontColorHex!.colorHex)
-          ], []),
+      var fontChildren = <XmlElement>[];
 
-        /// putting bold
-        if (fontStyleElement.isBold) XmlElement(XmlName('b'), [], []),
+      /// putting color (theme color takes priority)
+      if (fontStyleElement.fontColorCV != null) {
+        fontChildren.add(_writeColorElement('color', fontStyleElement.fontColorCV!));
+      } else if (fontStyleElement._fontColorHex != null &&
+          fontStyleElement._fontColorHex!.colorHex != "FF000000") {
+        fontChildren.add(XmlElement(XmlName('color'), [
+          XmlAttribute(
+              XmlName('rgb'), fontStyleElement._fontColorHex!.colorHex)
+        ], []));
+      }
 
-        /// putting italic
-        if (fontStyleElement.isItalic) XmlElement(XmlName('i'), [], []),
+      /// putting bold
+      if (fontStyleElement.isBold) fontChildren.add(XmlElement(XmlName('b'), [], []));
 
-        /// putting single underline
-        if (fontStyleElement.underline != Underline.None &&
-            fontStyleElement.underline == Underline.Single)
-          XmlElement(XmlName('u'), [], []),
+      /// putting italic
+      if (fontStyleElement.isItalic) fontChildren.add(XmlElement(XmlName('i'), [], []));
 
-        /// putting double underline
-        if (fontStyleElement.underline != Underline.None &&
-            fontStyleElement.underline != Underline.Single &&
-            fontStyleElement.underline == Underline.Double)
-          XmlElement(
-              XmlName('u'), [XmlAttribute(XmlName('val'), 'double')], []),
+      /// putting strikethrough
+      if (fontStyleElement.isStrikethrough) fontChildren.add(XmlElement(XmlName('strike'), [], []));
 
-        /// putting fontFamily
-        if (fontStyleElement.fontFamily != null &&
-            fontStyleElement.fontFamily!.toLowerCase().toString() != 'null' &&
-            fontStyleElement.fontFamily != '' &&
-            fontStyleElement.fontFamily!.isNotEmpty)
-          XmlElement(XmlName('name'), [
-            XmlAttribute(XmlName('val'), fontStyleElement.fontFamily.toString())
-          ], []),
+      /// putting single underline
+      if (fontStyleElement.underline == Underline.Single)
+        fontChildren.add(XmlElement(XmlName('u'), [], []));
 
-        /// putting fontScheme
-        if (fontStyleElement.fontScheme != FontScheme.Unset)
-          XmlElement(XmlName('scheme'), [
-            XmlAttribute(
-                XmlName('val'),
-                switch (fontStyleElement.fontScheme) {
-                  FontScheme.Major => "major",
-                  _ => "minor"
-                })
-          ], []),
+      /// putting double underline
+      if (fontStyleElement.underline == Underline.Double)
+        fontChildren.add(XmlElement(
+            XmlName('u'), [XmlAttribute(XmlName('val'), 'double')], []));
 
-        /// putting fontSize
-        if (fontStyleElement.fontSize != null &&
-            fontStyleElement.fontSize.toString().isNotEmpty)
-          XmlElement(XmlName('sz'), [
-            XmlAttribute(XmlName('val'), fontStyleElement.fontSize.toString())
-          ], []),
-      ]));
+      /// putting font vertical alignment (superscript/subscript)
+      if (fontStyleElement.fontVerticalAlign != FontVerticalAlign.none)
+        fontChildren.add(XmlElement(XmlName('vertAlign'), [
+          XmlAttribute(XmlName('val'), fontStyleElement.fontVerticalAlign.name)
+        ], []));
+
+      /// putting fontFamily
+      if (fontStyleElement.fontFamily != null &&
+          fontStyleElement.fontFamily!.toLowerCase().toString() != 'null' &&
+          fontStyleElement.fontFamily != '' &&
+          fontStyleElement.fontFamily!.isNotEmpty)
+        fontChildren.add(XmlElement(XmlName('name'), [
+          XmlAttribute(XmlName('val'), fontStyleElement.fontFamily.toString())
+        ], []));
+
+      /// putting fontScheme
+      if (fontStyleElement.fontScheme != FontScheme.Unset)
+        fontChildren.add(XmlElement(XmlName('scheme'), [
+          XmlAttribute(
+              XmlName('val'),
+              switch (fontStyleElement.fontScheme) {
+                FontScheme.Major => "major",
+                _ => "minor"
+              })
+        ], []));
+
+      /// putting fontSize
+      if (fontStyleElement.fontSize != null &&
+          fontStyleElement.fontSize.toString().isNotEmpty)
+        fontChildren.add(XmlElement(XmlName('sz'), [
+          XmlAttribute(XmlName('val'), fontStyleElement.fontSize.toString())
+        ], []));
+
+      fonts.children.add(XmlElement(XmlName('font'), [], fontChildren));
     });
 
     XmlElement fills =
@@ -296,14 +339,14 @@ class Save {
 
     var fillAttribute = fills.getAttributeNode('count');
 
+    int totalFills = _excel._patternFill.length + innerPatternFill.length + innerPatternFillValues.length;
     if (fillAttribute != null) {
-      fillAttribute.value =
-          '${_excel._patternFill.length + innerPatternFill.length}';
+      fillAttribute.value = '$totalFills';
     } else {
-      fills.attributes.add(XmlAttribute(XmlName('count'),
-          '${_excel._patternFill.length + innerPatternFill.length}'));
+      fills.attributes.add(XmlAttribute(XmlName('count'), '$totalFills'));
     }
 
+    /// Write legacy string-based fills
     innerPatternFill.forEach((color) {
       if (color.length >= 2) {
         if (color.substring(0, 2).toUpperCase() == 'FF') {
@@ -330,6 +373,22 @@ class Save {
             text:
                 "Corrupted Styles Found. Can't process further, Open up issue in github.");
       }
+    });
+
+    /// Write FillValue-based fills (with theme color and bgColor support)
+    innerPatternFillValues.forEach((fillVal) {
+      var patternFillChildren = <XmlElement>[];
+      if (fillVal.fgColor != null) {
+        patternFillChildren.add(_writeColorElement('fgColor', fillVal.fgColor!));
+      }
+      if (fillVal.bgColor != null) {
+        patternFillChildren.add(_writeColorElement('bgColor', fillVal.bgColor!));
+      }
+      fills.children.add(XmlElement(XmlName('fill'), [], [
+        XmlElement(XmlName('patternFill'), [
+          XmlAttribute(XmlName('patternType'), fillVal.patternType)
+        ], patternFillChildren)
+      ]));
     });
 
     XmlElement borders =
@@ -368,10 +427,15 @@ class Save {
         if (style != null) {
           element.attributes.add(XmlAttribute(XmlName('style'), style.style));
         }
-        final color = borderValue.borderColorHex;
-        if (color != null) {
-          element.children.add(XmlElement(
-              XmlName('color'), [XmlAttribute(XmlName('rgb'), color)]));
+        // Theme color takes priority over hex color
+        if (borderValue.borderColor != null) {
+          element.children.add(_writeColorElement('color', borderValue.borderColor!));
+        } else {
+          final color = borderValue.borderColorHex;
+          if (color != null) {
+            element.children.add(XmlElement(
+                XmlName('color'), [XmlAttribute(XmlName('rgb'), color)]));
+          }
         }
         borderElement.children.add(element);
       }
@@ -401,14 +465,37 @@ class Save {
           fontColorHex: cellStyle.fontColor,
           underline: cellStyle.underline,
           fontSize: cellStyle.fontSize,
-          fontFamily: cellStyle.fontFamily);
+          fontFamily: cellStyle.fontFamily,
+          fontScheme: cellStyle.fontScheme);
+      _fs.isStrikethrough = cellStyle.isStrikethrough;
+      _fs.fontVerticalAlign = cellStyle.fontVerticalAlign;
+      _fs.fontColorCV = cellStyle.fontColorValue;
 
       HorizontalAlign horizontalAlign = cellStyle.horizontalAlignment;
       VerticalAlign verticalAlign = cellStyle.verticalAlignment;
       int rotation = cellStyle.rotation;
       TextWrapping? textWrapping = cellStyle.wrap;
-      int backgroundIndex = innerPatternFill.indexOf(backgroundColor),
-          fontIndex = _fontStyleIndex(innerFontStyle, _fs);
+
+      // Resolve fill index: check FillValue first, then legacy string
+      int fillIdResolved = 0;
+      if (cellStyle.fill != null) {
+        int existingIdx = _excel._patternFill.indexOf(cellStyle.fill!);
+        if (existingIdx != -1) {
+          fillIdResolved = existingIdx;
+        } else {
+          int innerIdx = innerPatternFillValues.indexOf(cellStyle.fill!);
+          if (innerIdx != -1) {
+            fillIdResolved = _excel._patternFill.length + innerPatternFill.length + innerIdx;
+          }
+        }
+      } else {
+        int backgroundIndex = innerPatternFill.indexOf(backgroundColor);
+        if (backgroundIndex != -1) {
+          fillIdResolved = backgroundIndex + _excel._patternFill.length;
+        }
+      }
+
+      int fontIndex = _fontStyleIndex(innerFontStyle, _fs);
       _BorderSet _bs = _createBorderSetFromCellStyle(cellStyle);
       int borderIndex = innerBorderSet.indexOf(_bs);
 
@@ -421,34 +508,46 @@ class Save {
       var attributes = <XmlAttribute>[
         XmlAttribute(XmlName('borderId'),
             '${borderIndex == -1 ? 0 : borderIndex + _excel._borderSetList.length}'),
-        XmlAttribute(XmlName('fillId'),
-            '${backgroundIndex == -1 ? 0 : backgroundIndex + _excel._patternFill.length}'),
+        XmlAttribute(XmlName('fillId'), '$fillIdResolved'),
         XmlAttribute(XmlName('fontId'),
             '${fontIndex == -1 ? 0 : fontIndex + _excel._fontStyleList.length}'),
         XmlAttribute(XmlName('numFmtId'), numFmtId.toString()),
-        XmlAttribute(XmlName('xfId'), '0'),
+        XmlAttribute(XmlName('xfId'), cellStyle.xfId.toString()),
       ];
 
-      if ((_excel._patternFill.any((f) =>
-                  (f.fgColor?.hexColor ?? f.patternType) == backgroundColor) ||
-              innerPatternFill.contains(backgroundColor)) &&
-          backgroundColor != "none" &&
-          backgroundColor != "gray125" &&
-          backgroundColor.toLowerCase() != "lightgray") {
+      // apply* attributes
+      if (fillIdResolved > 0) {
         attributes.add(XmlAttribute(XmlName('applyFill'), '1'));
       }
 
-      if (_fontStyleIndex(_excel._fontStyleList, _fs) != -1 &&
-          _fontStyleIndex(innerFontStyle, _fs) != -1) {
+      int resolvedFontId = fontIndex == -1 ? 0 : fontIndex + _excel._fontStyleList.length;
+      if (resolvedFontId > 0) {
         attributes.add(XmlAttribute(XmlName('applyFont'), '1'));
+      }
+
+      if (borderIndex != -1 && borderIndex + _excel._borderSetList.length > 0) {
+        int resolvedBorderId = borderIndex + _excel._borderSetList.length;
+        if (resolvedBorderId > 0) {
+          attributes.add(XmlAttribute(XmlName('applyBorder'), '1'));
+        }
+      }
+
+      if (numFmtId > 0) {
+        attributes.add(XmlAttribute(XmlName('applyNumberFormat'), '1'));
       }
 
       var children = <XmlElement>[];
 
-      if (horizontalAlign != HorizontalAlign.Left ||
+      bool hasAlignment = horizontalAlign != HorizontalAlign.Left ||
           textWrapping != null ||
           verticalAlign != VerticalAlign.Bottom ||
-          rotation != 0) {
+          rotation != 0 ||
+          cellStyle.indent != 0 ||
+          cellStyle.readingOrder != 0 ||
+          cellStyle.justifyLastLine ||
+          cellStyle.relativeIndent != 0;
+
+      if (hasAlignment) {
         attributes.add(XmlAttribute(XmlName('applyAlignment'), '1'));
         var childAttributes = <XmlAttribute>[];
 
@@ -475,7 +574,36 @@ class Save {
               .add(XmlAttribute(XmlName('textRotation'), '$rotation'));
         }
 
+        // Extended alignment attributes
+        if (cellStyle.indent != 0) {
+          childAttributes.add(XmlAttribute(XmlName('indent'), '${cellStyle.indent}'));
+        }
+        if (cellStyle.readingOrder != 0) {
+          childAttributes.add(XmlAttribute(XmlName('readingOrder'), '${cellStyle.readingOrder}'));
+        }
+        if (cellStyle.justifyLastLine) {
+          childAttributes.add(XmlAttribute(XmlName('justifyLastLine'), '1'));
+        }
+        if (cellStyle.relativeIndent != 0) {
+          childAttributes.add(XmlAttribute(XmlName('relativeIndent'), '${cellStyle.relativeIndent}'));
+        }
+
         children.add(XmlElement(XmlName('alignment'), childAttributes, []));
+      }
+
+      // Protection element
+      if (cellStyle.protection != null) {
+        var protAttrs = <XmlAttribute>[];
+        if (!cellStyle.protection!.locked) {
+          protAttrs.add(XmlAttribute(XmlName('locked'), '0'));
+        }
+        if (cellStyle.protection!.hidden) {
+          protAttrs.add(XmlAttribute(XmlName('hidden'), '1'));
+        }
+        if (protAttrs.isNotEmpty) {
+          attributes.add(XmlAttribute(XmlName('applyProtection'), '1'));
+          children.add(XmlElement(XmlName('protection'), protAttrs, []));
+        }
       }
 
       celx.children.add(XmlElement(XmlName('xf'), attributes, children));

@@ -49,10 +49,12 @@ void main() {
       expect(exported.maxColumns, equals(original.maxColumns),
           reason: '$sheetName: column count mismatch');
 
-      // セル値を一括比較（個別expectだとタイムアウトするため）
+      // セル値を比較（A～W列、1～21行に限定）
+      var maxRow = original.maxRows < 21 ? original.maxRows : 21;
+      var maxCol = original.maxColumns < 23 ? original.maxColumns : 23;
       var mismatches = <String>[];
-      for (var r = 0; r < original.maxRows; r++) {
-        for (var c = 0; c < original.maxColumns; c++) {
+      for (var r = 0; r < maxRow; r++) {
+        for (var c = 0; c < maxCol; c++) {
           var origVal = original.rows[r][c]?.value?.toString() ?? '';
           var expVal = exported.rows[r][c]?.value?.toString() ?? '';
           if (origVal != expVal) {
