@@ -31,10 +31,20 @@
 **Purpose**: In-Memory Model から XLSX ファイルへのシリアライズ
 **Example**: `save_file.dart`（XML 生成 + ZIP 圧縮）、`self_correct_span.dart`（結合セル補正）
 
+### Shared Strings
+**Location**: `lib/src/sharedStrings/`
+**Purpose**: OOXML 共有文字列テーブルの管理、リッチテキスト（`TextSpan`）パース
+**Pattern**: `_SharedStringsMaintainer` がインデックス管理。パース時は `addFromParsedXml()` で位置保持、通常追加は重複排除
+
+### Number Format
+**Location**: `lib/src/number_format/`
+**Purpose**: OOXML 数値フォーマットの sealed class 階層と ID レジストリ管理
+**Pattern**: `NumFormat` sealed class + `NumFormatMaintainer` がカスタム ID（164〜）を採番
+
 ### Utilities
 **Location**: `lib/src/utilities/`
 **Purpose**: 共通ヘルパー、定数、列挙型
-**Example**: `constants.dart`（OOXML 定数）、`enum.dart`（TextWrapping, VerticalAlign 等）、`span.dart`
+**Example**: `constants.dart`（OOXML 定数）、`enum.dart`（TextWrapping, VerticalAlign, FontVerticalAlign 等）、`span.dart`
 
 ### Platform Abstraction
 **Location**: `lib/src/web_helper/`
@@ -43,8 +53,8 @@
 
 ### Tests
 **Location**: `test/`
-**Purpose**: 単一テストファイル + サンプルデータ
-**Pattern**: `excel_test.dart` に全テストケースを集約、`test_resources/` に 22 個の XLSX サンプル
+**Purpose**: 機能別テストファイル + サンプルデータ
+**Pattern**: 機能ドメインごとにテストファイルを分割（`excel_test.dart`, `parser_test.dart`, `exporter_test.dart`, `style_index_test.dart`, `style_model_test.dart` 等）。`test_resources/` に XLSX/XLSM サンプルファイル
 
 ### Examples
 **Location**: `example/`
@@ -89,8 +99,9 @@ part 'src/sheet/sheet.dart';
 
 - **単一ライブラリ**: 全 `.dart` ファイルは `part of excel;` で同一名前空間を共有
 - **疎行列モデル**: `Map<int, Map<int, Data>>` でシートデータを表現（空セルはメモリ不使用）
-- **Value Object**: `Equatable` を活用し、CellValue・CellStyle・Data を値オブジェクトとして扱う
+- **Value Object**: `Equatable` を活用し、CellValue・CellStyle・Data・ColorValue・FillValue・CellProtection を値オブジェクトとして扱う
 - **変更追跡**: `_mergeChanges`、`_styleChanges` 等のフラグで差分保存を制御
+- **XML パススルー**: 未対応の XML セクションは生 `XmlElement` として保持し Export 時に再挿入
 
 ---
 _Document patterns, not file trees. New files following patterns shouldn't require updates_
