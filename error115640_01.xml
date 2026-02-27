@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<recoveryLog xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><logFileName>error115640_01.xml</logFileName><summary>ファイル 'D:\004_play\Flutter3-32-0\excel\tmp\passthrough_out.xlsm' にエラーが検出されました</summary><removedParts><removedPart>置き換えられたパーツ: /xl/worksheets/sheet1.xml パーツに XML エラーがありました。  読み込みエラーが発生しました。場所は、行 2、列 0 です。</removedPart></removedParts></recoveryLog>

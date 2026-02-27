@@ -33,6 +33,16 @@ class _SharedStringsMaintainer {
     });
   }
 
+  /// XMLパース時専用。位置インデックスを保持するため、重複でも必ず _list に追加する。
+  /// save時は既存の add() が使われ、重複排除される。
+  void addFromParsedXml(SharedString val, String key) {
+    _list.add(val);
+    _map.putIfAbsent(val, () {
+      _mapString[key] = val;
+      return _IndexingHolder(_list.length - 1);
+    });
+  }
+
   int indexOf(SharedString val) {
     return _map[val] != null ? _map[val]!.index : -1;
   }

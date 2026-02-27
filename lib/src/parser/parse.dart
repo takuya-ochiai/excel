@@ -139,7 +139,7 @@ class Parser {
 
   void _parseSharedString(XmlElement node) {
     final sharedString = SharedString(node: node);
-    _excel._sharedStrings.add(sharedString, sharedString.stringValue);
+    _excel._sharedStrings.addFromParsedXml(sharedString, sharedString.stringValue);
   }
 
   void _parseContent({bool run = true}) {
@@ -607,7 +607,9 @@ class Parser {
       case 's':
         final sharedString = _excel._sharedStrings
             .value(int.parse(_parseValue(node.findElements('v').first)));
-        value = TextCellValue.span(sharedString!.textSpan);
+        if (sharedString != null) {
+          value = TextCellValue.span(sharedString.textSpan);
+        }
         break;
       // boolean
       case 'b':
