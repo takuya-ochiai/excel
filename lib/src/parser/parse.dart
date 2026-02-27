@@ -249,7 +249,15 @@ class Parser {
       _excel._cellStyleList = <CellStyle>[];
       _excel._borderSetList = <_BorderSet>[];
 
-      Iterable<XmlElement> fontList = document.findAllElements('font');
+      // Parse <fonts> section directly to build _fontStyleList
+      // Using findElements('font') on <fonts> element to avoid picking up
+      // fonts from <dxf> or other sections
+      var fontsElements = document.findAllElements('fonts');
+      if (fontsElements.isNotEmpty) {
+        fontsElements.first.findElements('font').forEach((fontElement) {
+          _excel._fontStyleList.add(_parseFontElement(fontElement));
+        });
+      }
 
       document.findAllElements('patternFill').forEach((node) {
         String patternType = node.getAttribute('patternType') ?? '';
@@ -361,7 +369,6 @@ class Parser {
           String fontColor = ExcelColor.black.colorHex,
               backgroundColor = ExcelColor.none.colorHex;
           String? fontFamily;
-          FontScheme fontScheme = FontScheme.Unset;
           _BorderSet? borderSet;
 
           int fontSize = 12;
@@ -381,98 +388,22 @@ class Parser {
           CellProtection? protection;
           int xfId = _getFontIndex(node, 'xfId');
           int fontId = _getFontIndex(node, 'fontId');
-          _FontStyle _fontStyle = _FontStyle();
 
-          /// checking for other font values
-          if (fontId < fontList.length) {
-            XmlElement font = fontList.elementAt(fontId);
+          // Use pre-built _fontStyleList from <fonts> section
+          _FontStyle _fontStyle = (fontId < _excel._fontStyleList.length)
+              ? _excel._fontStyleList[fontId]
+              : _FontStyle();
 
-            /// Checking for font color (RGB)
-            var _clr = _nodeChildren(font, 'color', attribute: 'rgb');
-            if (_clr != null && !(_clr is bool)) {
-              fontColor = _clr.toString();
-            }
-
-            /// Checking for font color (theme color support)
-            Iterable<XmlElement> colorElements = font.findElements('color');
-            if (colorElements.isNotEmpty) {
-              fontColorValue = _parseColorValue(colorElements.first);
-            }
-
-            /// Checking for font Size.
-            String? _size = _nodeChildren(font, 'sz', attribute: 'val');
-            if (_size != null) {
-              fontSize = double.parse(_size).round();
-            }
-
-            /// Checking for bold
-            var _bold = _nodeChildren(font, 'b');
-            if (_bold != null && _bold is bool && _bold) {
-              isBold = true;
-            }
-
-            /// Checking for italic
-            var _italic = _nodeChildren(font, 'i');
-            if (_italic != null && _italic) {
-              isItalic = true;
-            }
-
-            /// Checking for underline: if <u> element exists, check val attribute
-            var _hasUnderline = _nodeChildren(font, 'u');
-            if (_hasUnderline != null) {
-              var _underlineVal = _nodeChildren(font, 'u', attribute: 'val');
-              if (_underlineVal != null && _underlineVal.toString() == 'double') {
-                underline = Underline.Double;
-              } else {
-                underline = Underline.Single;
-              }
-            }
-
-            /// Checking for strikethrough
-            var _strike = _nodeChildren(font, 'strike');
-            if (_strike != null) {
-              isStrikethrough = true;
-            }
-
-            /// Checking for font vertical alignment (superscript/subscript)
-            var _vertAlignVal = _nodeChildren(font, 'vertAlign', attribute: 'val');
-            if (_vertAlignVal != null) {
-              if (_vertAlignVal.toString() == 'superscript') {
-                fontVerticalAlignVal = FontVerticalAlign.superscript;
-              } else if (_vertAlignVal.toString() == 'subscript') {
-                fontVerticalAlignVal = FontVerticalAlign.subscript;
-              }
-            }
-
-            /// Checking for font Family
-            var _family = _nodeChildren(font, 'name', attribute: 'val');
-            if (_family != null && _family != true) {
-              fontFamily = _family;
-            }
-
-            /// Checking for font Scheme
-            var _scheme = _nodeChildren(font, 'scheme', attribute: 'val');
-            if (_scheme != null) {
-              fontScheme =
-                  _scheme == "major" ? FontScheme.Major : FontScheme.Minor;
-            }
-
-            _fontStyle.isBold = isBold;
-            _fontStyle.isItalic = isItalic;
-            _fontStyle.underline = underline;
-            _fontStyle.fontSize = fontSize;
-            _fontStyle.fontFamily = fontFamily;
-            _fontStyle.fontScheme = fontScheme;
-            _fontStyle._fontColorHex = fontColor.excelColor;
-            _fontStyle.isStrikethrough = isStrikethrough;
-            _fontStyle.fontVerticalAlign = fontVerticalAlignVal;
-            _fontStyle.fontColorCV = fontColorValue;
-          }
-
-          /// If `-1` is returned then it indicates that `_fontStyle` is not present in the `_fontStyleList`
-          if (_fontStyleIndex(_excel._fontStyleList, _fontStyle) == -1) {
-            _excel._fontStyleList.add(_fontStyle);
-          }
+          // Extract values from fontStyle for CellStyle construction
+          fontColor = _fontStyle._fontColorHex?.colorHex ?? ExcelColor.black.colorHex;
+          fontColorValue = _fontStyle.fontColorCV;
+          fontSize = _fontStyle.fontSize ?? 12;
+          isBold = _fontStyle.isBold;
+          isItalic = _fontStyle.isItalic;
+          underline = _fontStyle.underline;
+          isStrikethrough = _fontStyle.isStrikethrough;
+          fontVerticalAlignVal = _fontStyle.fontVerticalAlign;
+          fontFamily = _fontStyle.fontFamily;
 
           int fillId = _getFontIndex(node, 'fillId');
           FillValue? fillValue;
@@ -615,6 +546,103 @@ class Parser {
       return true; // mocking to be found the children in case of bold and italic.
     }
     return null; // pretending that the node's children is not having specified child.
+  }
+
+  /// Parses a single <font> XML element into a _FontStyle object.
+  _FontStyle _parseFontElement(XmlElement font) {
+    String fontColor = ExcelColor.black.colorHex;
+    String? fontFamily;
+    FontScheme fontScheme = FontScheme.Unset;
+    int fontSize = 12;
+    bool isBold = false, isItalic = false;
+    Underline underline = Underline.None;
+    bool isStrikethrough = false;
+    FontVerticalAlign fontVerticalAlignVal = FontVerticalAlign.none;
+    ColorValue? fontColorValue;
+
+    /// Checking for font color (RGB)
+    var _clr = _nodeChildren(font, 'color', attribute: 'rgb');
+    if (_clr != null && !(_clr is bool)) {
+      fontColor = _clr.toString();
+    }
+
+    /// Checking for font color (theme color support)
+    Iterable<XmlElement> colorElements = font.findElements('color');
+    if (colorElements.isNotEmpty) {
+      fontColorValue = _parseColorValue(colorElements.first);
+    }
+
+    /// Checking for font Size.
+    String? _size = _nodeChildren(font, 'sz', attribute: 'val');
+    if (_size != null) {
+      fontSize = double.parse(_size).round();
+    }
+
+    /// Checking for bold
+    var _bold = _nodeChildren(font, 'b');
+    if (_bold != null && _bold is bool && _bold) {
+      isBold = true;
+    }
+
+    /// Checking for italic
+    var _italic = _nodeChildren(font, 'i');
+    if (_italic != null && _italic) {
+      isItalic = true;
+    }
+
+    /// Checking for underline
+    var _hasUnderline = _nodeChildren(font, 'u');
+    if (_hasUnderline != null) {
+      var _underlineVal = _nodeChildren(font, 'u', attribute: 'val');
+      if (_underlineVal != null && _underlineVal.toString() == 'double') {
+        underline = Underline.Double;
+      } else {
+        underline = Underline.Single;
+      }
+    }
+
+    /// Checking for strikethrough
+    var _strike = _nodeChildren(font, 'strike');
+    if (_strike != null) {
+      isStrikethrough = true;
+    }
+
+    /// Checking for font vertical alignment (superscript/subscript)
+    var _vertAlignVal = _nodeChildren(font, 'vertAlign', attribute: 'val');
+    if (_vertAlignVal != null) {
+      if (_vertAlignVal.toString() == 'superscript') {
+        fontVerticalAlignVal = FontVerticalAlign.superscript;
+      } else if (_vertAlignVal.toString() == 'subscript') {
+        fontVerticalAlignVal = FontVerticalAlign.subscript;
+      }
+    }
+
+    /// Checking for font Family
+    var _family = _nodeChildren(font, 'name', attribute: 'val');
+    if (_family != null && _family != true) {
+      fontFamily = _family;
+    }
+
+    /// Checking for font Scheme
+    var _scheme = _nodeChildren(font, 'scheme', attribute: 'val');
+    if (_scheme != null) {
+      fontScheme = _scheme == "major" ? FontScheme.Major : FontScheme.Minor;
+    }
+
+    _FontStyle _fontStyle = _FontStyle(
+      bold: isBold,
+      italic: isItalic,
+      underline: underline,
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      fontScheme: fontScheme,
+      fontColorHex: fontColor.excelColor,
+    );
+    _fontStyle.isStrikethrough = isStrikethrough;
+    _fontStyle.fontVerticalAlign = fontVerticalAlignVal;
+    _fontStyle.fontColorCV = fontColorValue;
+
+    return _fontStyle;
   }
 
   /// Parses a color XML element into a ColorValue object.

@@ -75,6 +75,11 @@ class Save {
           upperLevelPos = 0;
         }
       }
+      // Bound check: ensure index is within valid range
+      int totalStyles = _excel._cellStyleList.length + _innerCellStyle.length;
+      if (upperLevelPos >= totalStyles) {
+        upperLevelPos = 0;
+      }
       attributes.insert(
         1,
         XmlAttribute(XmlName('s'), '$upperLevelPos'),
@@ -489,15 +494,43 @@ class Save {
           }
         }
       } else {
-        int backgroundIndex = innerPatternFill.indexOf(backgroundColor);
-        if (backgroundIndex != -1) {
-          fillIdResolved = backgroundIndex + _excel._patternFill.length;
+        // Check existing _patternFill first, then inner list
+        int existingFillIdx = _excel._patternFill.indexWhere((f) =>
+            (f.fgColor?.hexColor ?? f.patternType) == backgroundColor);
+        if (existingFillIdx != -1) {
+          fillIdResolved = existingFillIdx;
+        } else {
+          int backgroundIndex = innerPatternFill.indexOf(backgroundColor);
+          if (backgroundIndex != -1) {
+            fillIdResolved = backgroundIndex + _excel._patternFill.length;
+          }
         }
       }
 
-      int fontIndex = _fontStyleIndex(innerFontStyle, _fs);
+      // Resolve fontId: check existing list first, then inner list
+      int fontIdResolved;
+      int existingFontIdx = _fontStyleIndex(_excel._fontStyleList, _fs);
+      if (existingFontIdx != -1) {
+        fontIdResolved = existingFontIdx;
+      } else {
+        int innerIdx = _fontStyleIndex(innerFontStyle, _fs);
+        fontIdResolved = (innerIdx != -1)
+            ? innerIdx + _excel._fontStyleList.length
+            : 0;
+      }
+
+      // Resolve borderId: check existing list first, then inner list
       _BorderSet _bs = _createBorderSetFromCellStyle(cellStyle);
-      int borderIndex = innerBorderSet.indexOf(_bs);
+      int borderIdResolved;
+      int existingBorderIdx = _excel._borderSetList.indexOf(_bs);
+      if (existingBorderIdx != -1) {
+        borderIdResolved = existingBorderIdx;
+      } else {
+        int innerIdx = innerBorderSet.indexOf(_bs);
+        borderIdResolved = (innerIdx != -1)
+            ? innerIdx + _excel._borderSetList.length
+            : 0;
+      }
 
       final numberFormat = cellStyle.numberFormat;
       final int numFmtId = switch (numberFormat) {
@@ -506,11 +539,9 @@ class Save {
       };
 
       var attributes = <XmlAttribute>[
-        XmlAttribute(XmlName('borderId'),
-            '${borderIndex == -1 ? 0 : borderIndex + _excel._borderSetList.length}'),
+        XmlAttribute(XmlName('borderId'), '$borderIdResolved'),
         XmlAttribute(XmlName('fillId'), '$fillIdResolved'),
-        XmlAttribute(XmlName('fontId'),
-            '${fontIndex == -1 ? 0 : fontIndex + _excel._fontStyleList.length}'),
+        XmlAttribute(XmlName('fontId'), '$fontIdResolved'),
         XmlAttribute(XmlName('numFmtId'), numFmtId.toString()),
         XmlAttribute(XmlName('xfId'), cellStyle.xfId.toString()),
       ];
@@ -520,16 +551,12 @@ class Save {
         attributes.add(XmlAttribute(XmlName('applyFill'), '1'));
       }
 
-      int resolvedFontId = fontIndex == -1 ? 0 : fontIndex + _excel._fontStyleList.length;
-      if (resolvedFontId > 0) {
+      if (fontIdResolved > 0) {
         attributes.add(XmlAttribute(XmlName('applyFont'), '1'));
       }
 
-      if (borderIndex != -1 && borderIndex + _excel._borderSetList.length > 0) {
-        int resolvedBorderId = borderIndex + _excel._borderSetList.length;
-        if (resolvedBorderId > 0) {
-          attributes.add(XmlAttribute(XmlName('applyBorder'), '1'));
-        }
+      if (borderIdResolved > 0) {
+        attributes.add(XmlAttribute(XmlName('applyBorder'), '1'));
       }
 
       if (numFmtId > 0) {
