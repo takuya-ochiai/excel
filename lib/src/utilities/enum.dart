@@ -38,3 +38,8 @@ enum Underline {
 ///enum for setting `font scheme`
 ///
 enum FontScheme { Unset, Major, Minor }
+
+///
+///enum for setting `font vertical alignment` (superscript/subscript)
+///
+enum FontVerticalAlign { none, superscript, subscript }

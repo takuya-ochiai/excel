@@ -34,6 +34,9 @@ part 'src/save/self_correct_span.dart';
 part 'src/parser/parse.dart';
 
 /// Sheet
+part 'src/sheet/color_value.dart';
+part 'src/sheet/fill_value.dart';
+part 'src/sheet/cell_protection.dart';
 part 'src/sheet/sheet.dart';
 part 'src/sheet/font_family.dart';
 part 'src/sheet/data_model.dart';
