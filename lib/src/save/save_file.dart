@@ -209,7 +209,8 @@ class Save {
 
       /// Filling the inner usable extra list of background color
       String backgroundColor = cellStyle.backgroundColor.colorHex;
-      if (!_excel._patternFill.contains(backgroundColor) &&
+      if (!_excel._patternFill.any((f) =>
+              (f.fgColor?.hexColor ?? f.patternType) == backgroundColor) &&
           !innerPatternFill.contains(backgroundColor)) {
         innerPatternFill.add(backgroundColor);
       }
@@ -428,7 +429,8 @@ class Save {
         XmlAttribute(XmlName('xfId'), '0'),
       ];
 
-      if ((_excel._patternFill.contains(backgroundColor) ||
+      if ((_excel._patternFill.any((f) =>
+                  (f.fgColor?.hexColor ?? f.patternType) == backgroundColor) ||
               innerPatternFill.contains(backgroundColor)) &&
           backgroundColor != "none" &&
           backgroundColor != "gray125" &&

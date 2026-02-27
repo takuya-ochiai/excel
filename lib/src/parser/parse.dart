@@ -245,21 +245,29 @@ class Parser {
       _excel._xmlFiles['xl/$_stylesTarget'] = document;
 
       _excel._fontStyleList = <_FontStyle>[];
-      _excel._patternFill = <String>[];
+      _excel._patternFill = <FillValue>[];
       _excel._cellStyleList = <CellStyle>[];
       _excel._borderSetList = <_BorderSet>[];
 
       Iterable<XmlElement> fontList = document.findAllElements('font');
 
       document.findAllElements('patternFill').forEach((node) {
-        String patternType = node.getAttribute('patternType') ?? '', rgb;
+        String patternType = node.getAttribute('patternType') ?? '';
         if (node.children.isNotEmpty) {
+          String rgb = '';
           node.findElements('fgColor').forEach((child) {
             rgb = child.getAttribute('rgb') ?? '';
-            _excel._patternFill.add(rgb);
           });
+          if (rgb.isNotEmpty) {
+            _excel._patternFill.add(FillValue(
+                patternType: patternType.isEmpty ? 'solid' : patternType,
+                fgColor: ColorValue.rgb(rgb)));
+          } else {
+            _excel._patternFill
+                .add(FillValue(patternType: patternType));
+          }
         } else {
-          _excel._patternFill.add(patternType);
+          _excel._patternFill.add(FillValue(patternType: patternType));
         }
       });
 
@@ -414,7 +422,8 @@ class Parser {
 
           int fillId = _getFontIndex(node, 'fillId');
           if (fillId < _excel._patternFill.length) {
-            backgroundColor = _excel._patternFill[fillId];
+            final fillValue = _excel._patternFill[fillId];
+            backgroundColor = fillValue.fgColor?.hexColor ?? fillValue.patternType;
           }
 
           int borderId = _getFontIndex(node, 'borderId');

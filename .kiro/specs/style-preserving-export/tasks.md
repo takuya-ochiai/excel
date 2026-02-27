@@ -22,8 +22,8 @@
   - ライブラリエントリポイントに新規ファイルを登録する
   - _Requirements: 3.1, 3.2, 3.3_
 
-- [ ] 2. 既存モデルの拡張
-- [ ] 2.1 CellStyle の拡張と Excel クラスのフィールド追加
+- [x] 2. 既存モデルの拡張
+- [x] 2.1 CellStyle の拡張と Excel クラスのフィールド追加
   - アライメント拡張プロパティ（indent, readingOrder, justifyLastLine, relativeIndent）を追加する
   - フォント拡張プロパティ（取り消し線、フォント垂直配置）を追加する
   - テーマカラー対応の色プロパティ（fontColor, backgroundColor）と塗りつぶし値オブジェクト（fill）のプロパティを追加する
@@ -35,7 +35,7 @@
   - Excel クラスのパターン塗りつぶしリストの型を塗りつぶし値オブジェクトのリストに変更する
   - _Requirements: 1.4, 1.5, 2.2, 2.3, 5.1, 5.3, 5.4, 8.1, 8.2_
 
-- [ ] 2.2 (P) _FontStyle の修正と Border の拡張
+- [x] 2.2 (P) _FontStyle の修正と Border の拡張
   - フォントスタイルの等値比較（Equatable props）に fontScheme を追加する
   - フォントスタイルに取り消し線フラグ、フォント垂直配置、テーマカラー対応の色フィールドを追加する
   - 罫線モデルにテーマカラー対応の色プロパティを追加し、既存の borderColorHex との後方互換性を維持する

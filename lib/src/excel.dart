@@ -36,13 +36,19 @@ class Excel {
   final Map<String, Sheet> _sheetMap = {};
 
   List<CellStyle> _cellStyleList = [];
-  List<String> _patternFill = [];
+  List<FillValue> _patternFill = [];
   final List<String> _mergeChangeLook = [];
   final List<String> _rtlChangeLook = [];
   List<_FontStyle> _fontStyleList = [];
   final List<int> _numFmtIds = [];
   final NumFormatMaintainer _numFormats = NumFormatMaintainer();
   List<_BorderSet> _borderSetList = [];
+
+  /// Raw XML for cellStyleXfs section (passthrough on export)
+  XmlElement? _rawCellStyleXfs;
+
+  /// Raw XML for cellStyles section (passthrough on export)
+  XmlElement? _rawCellStyles;
 
   _SharedStringsMaintainer _sharedStrings = _SharedStringsMaintainer._();
 

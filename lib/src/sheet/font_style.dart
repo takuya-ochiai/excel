@@ -10,6 +10,11 @@ class _FontStyle extends Equatable {
   Underline _underline = Underline.None;
   int? _fontSize;
 
+  // ── Extended font properties ──
+  bool _isStrikethrough = false;
+  FontVerticalAlign _fontVerticalAlign = FontVerticalAlign.none;
+  ColorValue? _fontColor;
+
   _FontStyle(
       {ExcelColor? fontColorHex = ExcelColor.black,
       int? fontSize,
@@ -113,6 +118,24 @@ class _FontStyle extends Equatable {
     _italic = italic;
   }
 
+  /// Get `Strikethrough`
+  bool get isStrikethrough => _isStrikethrough;
+
+  /// Set `Strikethrough`
+  set isStrikethrough(bool value) => _isStrikethrough = value;
+
+  /// Get `FontVerticalAlign`
+  FontVerticalAlign get fontVerticalAlign => _fontVerticalAlign;
+
+  /// Set `FontVerticalAlign`
+  set fontVerticalAlign(FontVerticalAlign value) => _fontVerticalAlign = value;
+
+  /// Get font color as ColorValue (theme color support)
+  ColorValue? get fontColorCV => _fontColor;
+
+  /// Set font color as ColorValue (theme color support)
+  set fontColorCV(ColorValue? value) => _fontColor = value;
+
   @override
   List<Object?> get props => [
         _bold,
@@ -120,6 +143,10 @@ class _FontStyle extends Equatable {
         _fontSize,
         _underline,
         _fontFamily,
+        _fontScheme,
         _fontColorHex,
+        _isStrikethrough,
+        _fontVerticalAlign,
+        _fontColor,
       ];
 }

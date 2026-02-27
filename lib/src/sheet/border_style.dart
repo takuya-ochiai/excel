@@ -4,7 +4,13 @@ class Border extends Equatable {
   final BorderStyle? borderStyle;
   final String? borderColorHex;
 
-  Border({BorderStyle? borderStyle, ExcelColor? borderColorHex})
+  /// Theme-color-aware border color
+  final ColorValue? borderColor;
+
+  Border(
+      {BorderStyle? borderStyle,
+      ExcelColor? borderColorHex,
+      this.borderColor})
       : borderStyle = borderStyle == BorderStyle.None ? null : borderStyle,
         borderColorHex = borderColorHex != null
             ? _isColorAppropriate(borderColorHex.colorHex)
@@ -12,13 +18,14 @@ class Border extends Equatable {
 
   @override
   String toString() {
-    return 'Border(borderStyle: $borderStyle, borderColorHex: $borderColorHex)';
+    return 'Border(borderStyle: $borderStyle, borderColorHex: $borderColorHex, borderColor: $borderColor)';
   }
 
   @override
   List<Object?> get props => [
         borderStyle,
         borderColorHex,
+        borderColor,
       ];
 }
 

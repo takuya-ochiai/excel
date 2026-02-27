@@ -23,6 +23,29 @@ class CellStyle extends Equatable {
   bool _diagonalBorderDown = false;
   NumFormat numberFormat;
 
+  // ── Alignment extended properties ──
+  int _indent = 0;
+  int _readingOrder = 0;
+  bool _justifyLastLine = false;
+  int _relativeIndent = 0;
+
+  // ── Font extended properties ──
+  bool _isStrikethrough = false;
+  FontVerticalAlign _fontVerticalAlign = FontVerticalAlign.none;
+
+  // ── Theme color properties ──
+  ColorValue? _fontColor;
+  ColorValue? _backgroundColor;
+
+  // ── Fill extended property ──
+  FillValue? _fill;
+
+  // ── Cell protection ──
+  CellProtection? _protection;
+
+  // ── Style reference ID ──
+  int _xfId = 0;
+
   CellStyle({
     ExcelColor fontColorHex = ExcelColor.black,
     ExcelColor backgroundColorHex = ExcelColor.none,
@@ -133,6 +156,51 @@ class CellStyle extends Equatable {
   set backgroundColor(ExcelColor backgroundColorHex) {
     _backgroundColorHex = _isColorAppropriate(backgroundColorHex.colorHex);
   }
+
+  // ── Alignment extended getters/setters ──
+
+  int get indent => _indent;
+  set indent(int value) => _indent = value;
+
+  int get readingOrder => _readingOrder;
+  set readingOrder(int value) => _readingOrder = value;
+
+  bool get justifyLastLine => _justifyLastLine;
+  set justifyLastLine(bool value) => _justifyLastLine = value;
+
+  int get relativeIndent => _relativeIndent;
+  set relativeIndent(int value) => _relativeIndent = value;
+
+  // ── Font extended getters/setters ──
+
+  bool get isStrikethrough => _isStrikethrough;
+  set isStrikethrough(bool value) => _isStrikethrough = value;
+
+  FontVerticalAlign get fontVerticalAlign => _fontVerticalAlign;
+  set fontVerticalAlign(FontVerticalAlign value) => _fontVerticalAlign = value;
+
+  // ── Theme color getters/setters ──
+
+  ColorValue? get fontColorValue => _fontColor;
+  set fontColorValue(ColorValue? value) => _fontColor = value;
+
+  ColorValue? get backgroundColorValue => _backgroundColor;
+  set backgroundColorValue(ColorValue? value) => _backgroundColor = value;
+
+  // ── Fill getter/setter ──
+
+  FillValue? get fill => _fill;
+  set fill(FillValue? value) => _fill = value;
+
+  // ── Cell protection getter/setter ──
+
+  CellProtection? get protection => _protection;
+  set protection(CellProtection? value) => _protection = value;
+
+  // ── Style reference ID getter/setter ──
+
+  int get xfId => _xfId;
+  set xfId(int value) => _xfId = value;
 
   ///Get Horizontal Alignment
   ///
@@ -368,5 +436,16 @@ class CellStyle extends Equatable {
         _diagonalBorderUp,
         _diagonalBorderDown,
         numberFormat,
+        _indent,
+        _readingOrder,
+        _justifyLastLine,
+        _relativeIndent,
+        _isStrikethrough,
+        _fontVerticalAlign,
+        _fontColor,
+        _backgroundColor,
+        _fill,
+        _protection,
+        _xfId,
       ];
 }
