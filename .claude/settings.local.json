@@ -8,7 +8,9 @@
       "Bash(python:*)",
       "Bash(xargs grep:*)",
       "WebSearch",
-      "Skill(kiro:spec-design)"
+      "Skill(kiro:spec-design)",
+      "Skill(kiro:spec-tasks)",
+      "Skill(kiro:spec-impl)"
     ]
   }
 }
