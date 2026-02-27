@@ -5,7 +5,9 @@
       "Bash(dart pub:*)",
       "Bash(dart test:*)",
       "Bash(dart:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(xargs grep:*)",
+      "WebSearch"
     ]
   }
 }

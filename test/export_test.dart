@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:excel/excel.dart';
 import 'package:test/test.dart';
+import 'package:xml/xml.dart';
 
 void main() {
   test('xlsmファイルを読み込めること', () {
@@ -61,4 +64,36 @@ void main() {
     }
     print('Passthrough export verified successfully.');
   }, timeout: Timeout(Duration(minutes: 5)));
+
+  test('headerFooterがextLstより前に配置されること', () {
+    var file = './test/test_resources/report-template.xlsm';
+    var bytes = File(file).readAsBytesSync();
+    var excel = Excel.decodeBytes(bytes);
+
+    var exportedBytes = excel.encode()!;
+
+    var archive = ZipDecoder().decodeBytes(exportedBytes);
+    var sheetFiles = archive.files
+        .where((f) => f.name.startsWith('xl/worksheets/sheet') && f.name.endsWith('.xml'));
+
+    for (var sheetFile in sheetFiles) {
+      var xmlContent = utf8.decode(sheetFile.content as List<int>);
+      var document = XmlDocument.parse(xmlContent);
+      var worksheet = document.findAllElements('worksheet').first;
+
+      var children = worksheet.children.whereType<XmlElement>().toList();
+      var headerFooterIndex = children.indexWhere((e) => e.name.local == 'headerFooter');
+      var extLstIndex = children.indexWhere((e) => e.name.local == 'extLst');
+
+      if (headerFooterIndex != -1 && extLstIndex != -1) {
+        expect(headerFooterIndex, lessThan(extLstIndex),
+            reason: '${sheetFile.name}: headerFooter must appear before extLst');
+      }
+
+      if (extLstIndex != -1) {
+        expect(extLstIndex, equals(children.length - 1),
+            reason: '${sheetFile.name}: extLst must be the last child element');
+      }
+    }
+  });
 }

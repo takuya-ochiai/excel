@@ -703,7 +703,17 @@ class Save {
 
     if (sheet.headerFooter == null) return;
 
-    sheetXmlElement.children.add(sheet.headerFooter!.toXmlElement());
+    final extLstIndex = sheetXmlElement.children.indexWhere(
+      (child) =>
+          child is XmlElement &&
+          (child as XmlElement).name.local == 'extLst',
+    );
+    if (extLstIndex != -1) {
+      sheetXmlElement.children
+          .insert(extLstIndex, sheet.headerFooter!.toXmlElement());
+    } else {
+      sheetXmlElement.children.add(sheet.headerFooter!.toXmlElement());
+    }
   }
 
   /// Writing the merged cells information into the excel properties files.
