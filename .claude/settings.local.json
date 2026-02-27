@@ -7,7 +7,8 @@
       "Bash(dart:*)",
       "Bash(python:*)",
       "Bash(xargs grep:*)",
-      "WebSearch"
+      "WebSearch",
+      "Skill(kiro:spec-design)"
     ]
   }
 }

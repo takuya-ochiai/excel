@@ -84,6 +84,7 @@ Kiro-style Spec Driven Development implementation on AI-DLC (AI Development Life
 - Simplicity First: Make every change as simple as possible. Impact minimal code.
 - No Laziness: Find root causes. No temporary fixes. Senior developer standards.
 - Minimal Impact: Changes should only touch what's necessary. Avoid introducing bugs.
+- Use AskUserQuetionTool: When you need to confirm something with the user, use the AskUserQuestionTool to clear each one individually.
 
 ## Steering Configuration
 - Load entire `.kiro/steering/` as project memory
