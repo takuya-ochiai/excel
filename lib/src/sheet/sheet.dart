@@ -723,7 +723,7 @@ class Sheet {
       final cellStyleBefore =
           _sheetData[newRowIndex]?[newColumnIndex]?.cellStyle;
       if (cellStyleBefore != null) {
-        if (cellStyleBefore.numberFormat != defaultFormat) {
+        if (!cellStyleBefore.numberFormat.accepts(value)) {
           cellStyle =
               cellStyleBefore.copyWith(numberFormat: defaultFormat);
         }

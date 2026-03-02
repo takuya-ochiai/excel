@@ -11,7 +11,8 @@
       "Skill(kiro:spec-design)",
       "Skill(kiro:spec-tasks)",
       "Skill(kiro:spec-impl)",
-      "Bash(flutter test:*)"
+      "Bash(flutter test:*)",
+      "Bash(grep:*)"
     ]
   }
 }

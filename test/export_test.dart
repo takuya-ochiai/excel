@@ -67,6 +67,96 @@ void main() {
     print('Passthrough export verified successfully.');
   }, timeout: Timeout(Duration(minutes: 5)));
 
+  test('xlsmファイルを読み込み、一部変更してエクスポートする', () {
+    var file = './test/test_resources/report-template.xlsm';
+    var bytes = File(file).readAsBytesSync();
+    var excel = Excel.decodeBytes(bytes);
+    var sheetName = excel.tables.keys.first;
+    var sheet = excel.tables[sheetName]!;
+
+    // 5行目DE列の結合セルに`2021026400`
+    sheet.updateCell(
+        CellIndex.indexByString('D5'), TextCellValue('2021026400'));
+    // 5行目G列のセルに`00`
+    sheet.updateCell(CellIndex.indexByString('G5'), TextCellValue('00'));
+    // 5行目I列のセルに`1`
+    sheet.updateCell(CellIndex.indexByString('I5'), IntCellValue(1));
+    // 5行目MNO列の結合セルに`968`
+    sheet.updateCell(CellIndex.indexByString('M5'), IntCellValue(968));
+    // 5行目RS列の結合セルに`943`
+    sheet.updateCell(CellIndex.indexByString('R5'), IntCellValue(943));
+    // 5行目VW列の結合セルに`0`
+    sheet.updateCell(CellIndex.indexByString('V5'), IntCellValue(0));
+    // 6行目F~W列の結合セルに`春日神社`
+    sheet.updateCell(
+        CellIndex.indexByString('F6'), TextCellValue('春日神社'));
+    // 9行目P列のセルに`段切り`
+    sheet.updateCell(
+        CellIndex.indexByString('P9'), TextCellValue('段切り'));
+    // 12行目CD列の結合セルに`杉`
+    sheet.updateCell(CellIndex.indexByString('C12'), TextCellValue('杉'));
+    // 12行目E列のセルに`34`
+    sheet.updateCell(CellIndex.indexByString('E12'), IntCellValue(34));
+    // 12行目F列のセルに`地役権外`
+    sheet.updateCell(
+        CellIndex.indexByString('F12'), TextCellValue('地役権外'));
+    // 12行目G列のセルに`根切り`
+    sheet.updateCell(
+        CellIndex.indexByString('G12'), TextCellValue('根切り'));
+    // 12行目H列のセルに`要`
+    sheet.updateCell(CellIndex.indexByString('H12'), TextCellValue('要'));
+    // 12行目I列のセルに`伐触木以外`
+    sheet.updateCell(
+        CellIndex.indexByString('I12'), TextCellValue('伐触木以外'));
+    // 12行目P列のセルに`1.00`
+    sheet.updateCell(
+        CellIndex.indexByString('P12'), DoubleCellValue(1.00));
+
+    // エンコード
+    var exportedBytes = excel.encode()!;
+
+    // エクスポートしたファイルを保存
+    var outPath = Directory.current.path + '/tmp/modified_out.xlsm';
+    File(outPath)
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(exportedBytes);
+    print('Exported to: $outPath');
+
+    // 再読み込みして検証
+    var excelAgain = Excel.decodeBytes(exportedBytes);
+    var sheetAgain = excelAgain.tables[sheetName]!;
+
+    // 変更したセルの値を検証
+    var expectations = <String, String>{
+      'D5': '2021026400',
+      'G5': '00',
+      'I5': '1',
+      'M5': '968',
+      'R5': '943',
+      'V5': '0',
+      'F6': '春日神社',
+      'P9': '段切り',
+      'C12': '杉',
+      'E12': '34',
+      'F12': '地役権外',
+      'G12': '根切り',
+      'H12': '要',
+      'I12': '伐触木以外',
+      'P12': '1',
+    };
+
+    var mismatches = <String>[];
+    for (var entry in expectations.entries) {
+      var cell = sheetAgain.cell(CellIndex.indexByString(entry.key));
+      var actual = cell.value?.toString() ?? '';
+      if (actual != entry.value) {
+        mismatches.add('${entry.key}: expected "${entry.value}" but got "$actual"');
+      }
+    }
+    expect(mismatches, isEmpty, reason: mismatches.join('\n'));
+    print('Modified export verified successfully.');
+  }, timeout: Timeout(Duration(minutes: 5)));
+
   test('headerFooterがextLstより前に配置されること', () {
     var file = './test/test_resources/report-template.xlsm';
     var bytes = File(file).readAsBytesSync();

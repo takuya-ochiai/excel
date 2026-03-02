@@ -786,11 +786,11 @@ class Save {
     final customHeights = sheetObject.getRowHeights;
     final styleRefs = _excel._cellStyleReferenced[sheetName];
 
-    // In passthrough mode, precompute rows that have style references
-    // so we can emit style-only <c> elements for cells removed from _sheetData
-    // (e.g. non-top-left cells of merged ranges).
+    // Precompute rows that have style references so we can emit style-only
+    // <c> elements for cells removed from _sheetData (e.g. non-top-left cells
+    // of merged ranges). This is needed in both passthrough and modified modes.
     Set<int>? styledRows;
-    if (!_excel._styleChanges && styleRefs != null) {
+    if (styleRefs != null) {
       styledRows = {};
       for (var cellRef in styleRefs.keys) {
         final row = _rowFromCellRef(cellRef);
