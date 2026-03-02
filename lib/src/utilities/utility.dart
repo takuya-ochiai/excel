@@ -58,6 +58,9 @@ int? _getRowNumber(XmlElement row) {
 }
 
 int _checkPosition(List<CellStyle> list, CellStyle cellStyle) {
+  for (int i = 0; i < list.length; i++) {
+    if (identical(list[i], cellStyle)) return i;
+  }
   return list.indexOf(cellStyle);
 }
 

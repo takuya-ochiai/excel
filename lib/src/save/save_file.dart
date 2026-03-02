@@ -94,6 +94,9 @@ class Save {
     }
 
     // TODO track & write the numFmts/numFmt to styles.xml if used
+    // Fall back to default format when numberFormat is null (e.g. cells
+    // added via appendRow/insertRowIterables which bypass updateCell).
+    final effectiveFormat = numberFormat ?? NumFormat.defaultFor(value);
     final List<XmlElement> children;
     switch (value) {
       case null:
@@ -104,46 +107,46 @@ class Save {
           XmlElement(XmlName('v'), [], [XmlText('')]),
         ];
       case IntCellValue():
-        final String v = switch (numberFormat) {
-          NumericNumFormat() => numberFormat.writeInt(value),
+        final String v = switch (effectiveFormat) {
+          NumericNumFormat() => effectiveFormat.writeInt(value),
           _ => throw Exception(
-              '$numberFormat does not work for ${value.runtimeType}'),
+              '$effectiveFormat does not work for ${value.runtimeType}'),
         };
         children = [
           XmlElement(XmlName('v'), [], [XmlText(v)]),
         ];
       case DoubleCellValue():
-        final String v = switch (numberFormat) {
-          NumericNumFormat() => numberFormat.writeDouble(value),
+        final String v = switch (effectiveFormat) {
+          NumericNumFormat() => effectiveFormat.writeDouble(value),
           _ => throw Exception(
-              '$numberFormat does not work for ${value.runtimeType}'),
+              '$effectiveFormat does not work for ${value.runtimeType}'),
         };
         children = [
           XmlElement(XmlName('v'), [], [XmlText(v)]),
         ];
       case DateTimeCellValue():
-        final String v = switch (numberFormat) {
-          DateTimeNumFormat() => numberFormat.writeDateTime(value),
+        final String v = switch (effectiveFormat) {
+          DateTimeNumFormat() => effectiveFormat.writeDateTime(value),
           _ => throw Exception(
-              '$numberFormat does not work for ${value.runtimeType}'),
+              '$effectiveFormat does not work for ${value.runtimeType}'),
         };
         children = [
           XmlElement(XmlName('v'), [], [XmlText(v)]),
         ];
       case DateCellValue():
-        final String v = switch (numberFormat) {
-          DateTimeNumFormat() => numberFormat.writeDate(value),
+        final String v = switch (effectiveFormat) {
+          DateTimeNumFormat() => effectiveFormat.writeDate(value),
           _ => throw Exception(
-              '$numberFormat does not work for ${value.runtimeType}'),
+              '$effectiveFormat does not work for ${value.runtimeType}'),
         };
         children = [
           XmlElement(XmlName('v'), [], [XmlText(v)]),
         ];
       case TimeCellValue():
-        final String v = switch (numberFormat) {
-          TimeNumFormat() => numberFormat.writeTime(value),
+        final String v = switch (effectiveFormat) {
+          TimeNumFormat() => effectiveFormat.writeTime(value),
           _ => throw Exception(
-              '$numberFormat does not work for ${value.runtimeType}'),
+              '$effectiveFormat does not work for ${value.runtimeType}'),
         };
         children = [
           XmlElement(XmlName('v'), [], [XmlText(v)]),
@@ -781,6 +784,19 @@ class Save {
 
   void _setRows(String sheetName, Sheet sheetObject) {
     final customHeights = sheetObject.getRowHeights;
+    final styleRefs = _excel._cellStyleReferenced[sheetName];
+
+    // In passthrough mode, precompute rows that have style references
+    // so we can emit style-only <c> elements for cells removed from _sheetData
+    // (e.g. non-top-left cells of merged ranges).
+    Set<int>? styledRows;
+    if (!_excel._styleChanges && styleRefs != null) {
+      styledRows = {};
+      for (var cellRef in styleRefs.keys) {
+        final row = _rowFromCellRef(cellRef);
+        if (row != null) styledRows.add(row);
+      }
+    }
 
     for (var rowIndex = 0; rowIndex < sheetObject._maxRows; rowIndex++) {
       double? height;
@@ -789,7 +805,10 @@ class Save {
         height = customHeights[rowIndex];
       }
 
-      if (sheetObject._sheetData[rowIndex] == null) {
+      final rowData = sheetObject._sheetData[rowIndex];
+      final hasStyleRefs = styledRows?.contains(rowIndex) ?? false;
+
+      if (rowData == null && !hasStyleRefs) {
         continue;
       }
       var foundRow = _createNewRow(
@@ -797,14 +816,26 @@ class Save {
       for (var columnIndex = 0;
           columnIndex < sheetObject._maxColumns;
           columnIndex++) {
-        var data = sheetObject._sheetData[rowIndex]![columnIndex];
-        if (data == null) {
-          continue;
+        var data = rowData?[columnIndex];
+        if (data != null) {
+          _updateCell(sheetName, foundRow, columnIndex, rowIndex, data.value,
+              data.cellStyle?.numberFormat);
+        } else if (hasStyleRefs && styleRefs != null) {
+          String rC = getCellId(columnIndex, rowIndex);
+          if (styleRefs.containsKey(rC)) {
+            _updateCell(
+                sheetName, foundRow, columnIndex, rowIndex, null, null);
+          }
         }
-        _updateCell(sheetName, foundRow, columnIndex, rowIndex, data.value,
-            data.cellStyle?.numberFormat);
       }
     }
+  }
+
+  /// Extract 0-based row index from a cell reference like "A1", "B2".
+  static int? _rowFromCellRef(String cellRef) {
+    final match = RegExp(r'[A-Z]+(\d+)').firstMatch(cellRef);
+    if (match == null) return null;
+    return int.parse(match.group(1)!) - 1;
   }
 
   bool _setDefaultSheet(String? sheetName) {

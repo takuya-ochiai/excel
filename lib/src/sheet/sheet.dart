@@ -717,12 +717,18 @@ class Sheet {
             cellStyle.copyWith(numberFormat: NumFormat.defaultFor(value));
       }
     } else {
+      // No explicit cellStyle provided — set the default number format for the
+      // value type, preserving other style properties from any existing style.
+      final defaultFormat = NumFormat.defaultFor(value);
       final cellStyleBefore =
-          _sheetData[cellIndex.rowIndex]?[cellIndex.columnIndex]?.cellStyle;
-      if (cellStyleBefore != null &&
-          !cellStyleBefore.numberFormat.accepts(value)) {
-        cellStyle =
-            cellStyleBefore.copyWith(numberFormat: NumFormat.defaultFor(value));
+          _sheetData[newRowIndex]?[newColumnIndex]?.cellStyle;
+      if (cellStyleBefore != null) {
+        if (cellStyleBefore.numberFormat != defaultFormat) {
+          cellStyle =
+              cellStyleBefore.copyWith(numberFormat: defaultFormat);
+        }
+      } else {
+        cellStyle = CellStyle(numberFormat: defaultFormat);
       }
     }
 
@@ -1103,9 +1109,16 @@ class Sheet {
     }
 
     cell._value = value;
-    cell._cellStyle = CellStyle(numberFormat: NumFormat.defaultFor(value));
-    if (cell._cellStyle != NumFormat.standard_0) {
-      _excel._styleChanges = true;
+
+    // Set a default number format for the value type when the cell has no
+    // existing style (e.g. new cells from appendRow/insertRowIterables).
+    // Parsed cells already have styles via _setParseData so this is skipped.
+    if (cell._cellStyle == null) {
+      final defaultFormat = NumFormat.defaultFor(value);
+      if (defaultFormat != NumFormat.standard_0) {
+        cell._cellStyle = CellStyle(numberFormat: defaultFormat);
+        _excel._styleChanges = true;
+      }
     }
 
     if ((_maxColumns - 1) < columnIndex) {
@@ -1117,6 +1130,37 @@ class Sheet {
     }
 
     //_countRowsAndColumns();
+  }
+
+  ///
+  /// Internal function for setting parsed data from the Excel file.
+  /// Unlike [updateCell], this does not trigger [_styleChanges] and
+  /// skips [accepts()] / [_isInsideSpanning] checks, preserving the
+  /// original style index intact for pass-through export.
+  ///
+  void _setParseData(
+      int rowIndex, int columnIndex, CellValue? value, CellStyle? cellStyle) {
+    var row = _sheetData[rowIndex];
+    if (row == null) {
+      _sheetData[rowIndex] = row = {};
+    }
+    var cell = row[columnIndex];
+    if (cell == null) {
+      row[columnIndex] = cell = Data.newData(this, rowIndex, columnIndex);
+    }
+
+    cell._value = value;
+    if (cellStyle != null) {
+      cell._cellStyle = cellStyle;
+    }
+
+    if ((_maxColumns - 1) < columnIndex) {
+      _maxColumns = columnIndex + 1;
+    }
+
+    if ((_maxRows - 1) < rowIndex) {
+      _maxRows = rowIndex + 1;
+    }
   }
 
   double? get defaultRowHeight => _defaultRowHeight;

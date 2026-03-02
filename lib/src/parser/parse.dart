@@ -259,27 +259,42 @@ class Parser {
         });
       }
 
-      document.findAllElements('patternFill').forEach((node) {
-        String patternType = node.getAttribute('patternType') ?? '';
-        if (node.children.isNotEmpty) {
-          ColorValue? fgColor;
-          ColorValue? bgColor;
-          node.findElements('fgColor').forEach((child) {
-            fgColor = _parseColorValue(child);
-          });
-          node.findElements('bgColor').forEach((child) {
-            bgColor = _parseColorValue(child);
-          });
-          _excel._patternFill.add(FillValue(
-              patternType: patternType.isEmpty ? 'solid' : patternType,
-              fgColor: fgColor,
-              bgColor: bgColor));
-        } else {
-          _excel._patternFill.add(FillValue(patternType: patternType));
-        }
-      });
+      var fillsElements = document.findAllElements('fills');
+      if (fillsElements.isNotEmpty) {
+        fillsElements.first.findElements('fill').forEach((fillNode) {
+          var patternFillNodes = fillNode.findElements('patternFill');
+          if (patternFillNodes.isNotEmpty) {
+            var node = patternFillNodes.first;
+            String patternType = node.getAttribute('patternType') ?? '';
+            if (node.children.isNotEmpty) {
+              ColorValue? fgColor;
+              ColorValue? bgColor;
+              node.findElements('fgColor').forEach((child) {
+                fgColor = _parseColorValue(child);
+              });
+              node.findElements('bgColor').forEach((child) {
+                bgColor = _parseColorValue(child);
+              });
+              _excel._patternFill.add(FillValue(
+                  patternType: patternType.isEmpty ? 'solid' : patternType,
+                  fgColor: fgColor,
+                  bgColor: bgColor));
+            } else {
+              _excel._patternFill.add(FillValue(patternType: patternType));
+            }
+          } else {
+            // Non-patternFill fill (e.g. gradientFill) — add placeholder
+            // to maintain index alignment with cellXfs references
+            _excel._patternFill.add(FillValue(patternType: 'none'));
+          }
+        });
+      }
 
-      document.findAllElements('border').forEach((node) {
+      var bordersElements = document.findAllElements('borders');
+      (bordersElements.isNotEmpty
+              ? bordersElements.first.findElements('border')
+              : document.findAllElements('border'))
+          .forEach((node) {
         final diagonalUp = !['0', 'false', null]
             .contains(node.getAttribute('diagonalUp')?.trim());
         final diagonalDown = !['0', 'false', null]
@@ -528,6 +543,21 @@ class Parser {
           _excel._cellStyleList.add(cellStyle);
         });
       });
+      // Fix up count attributes in the stored XML to ensure consistency
+      // (some files have incorrect counts that would propagate in passthrough).
+      const countFixups = {
+        'fonts': 'font',
+        'fills': 'fill',
+        'borders': 'border',
+        'cellXfs': 'xf',
+      };
+      for (var entry in countFixups.entries) {
+        var el = document.findAllElements(entry.key).firstOrNull;
+        if (el != null) {
+          el.setAttribute(
+              'count', el.findElements(entry.value).length.toString());
+        }
+      }
     } else {
       _damagedExcel(text: 'styles');
     }
@@ -826,11 +856,7 @@ class Parser {
         }
     }
 
-    sheetObject.updateCell(
-      CellIndex.indexByColumnRow(columnIndex: columnIndex, rowIndex: rowIndex),
-      value,
-      cellStyle: _excel._cellStyleList[s],
-    );
+    sheetObject._setParseData(rowIndex, columnIndex, value, _excel._cellStyleList[s]);
   }
 
   static String _parseValue(XmlElement node) {
